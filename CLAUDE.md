@@ -52,3 +52,7 @@ The `architecture/` folder contains task prompts for implementing:
 - `device-ux.md` - Controller UI/UX
 - `file-uploads.md` - UploadThing integration
 - `database.md` - Drizzle schema design
+
+## Git Conventions
+
+- Do not include the Claude Code watermark or `Co-Authored-By` lines in commit messages
