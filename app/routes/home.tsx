@@ -1,13 +1,31 @@
+import { redirect } from "react-router";
 import type { Route } from "./+types/home";
-import { Welcome } from "../welcome/welcome";
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "New React Router App" },
-    { name: "description", content: "Welcome to React Router!" },
+    { title: "Nano Looper" },
+    { name: "description", content: "A collaborative loop-based music DAW" },
   ];
 }
 
+export async function action({}: Route.ActionArgs) {
+  const roomId = Bun.randomUUIDv7();
+  // TODO: Create room in database
+  return redirect(`/r/${roomId}`);
+}
+
 export default function Home() {
-  return <Welcome />;
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-950 text-white">
+      <h1 className="text-4xl font-bold mb-8">Nano Looper</h1>
+      <form method="post">
+        <button
+          type="submit"
+          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-lg font-medium transition-colors"
+        >
+          Create New Room
+        </button>
+      </form>
+    </div>
+  );
 }
