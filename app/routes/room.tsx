@@ -1,4 +1,6 @@
 import type { Route } from "./+types/room";
+import { getRoom } from "~/db/rooms";
+import { isValidUUID } from "~/lib/uuid";
 
 export function meta({ params }: Route.MetaArgs) {
   return [
@@ -9,15 +11,32 @@ export function meta({ params }: Route.MetaArgs) {
 
 export async function loader({ params }: Route.LoaderArgs) {
   const { roomId } = params;
-  // TODO: Load room state from database
-  const roomState = {
-    id: roomId,
-    tempo: 120,
-    padMappings: {} as Record<string, string>, // pad index -> sound ID
-    createdAt: new Date().toISOString(),
-    saved: false,
+
+  // Validate UUID format
+  if (!isValidUUID(roomId)) {
+    throw new Response("Invalid room ID", { status: 400 });
+  }
+
+  const room = await getRoom(roomId);
+
+  if (!room) {
+    throw new Response("Room not found or expired", { status: 404 });
+  }
+
+  // Parse padMappings from JSON string
+  const padMappings = room.padMappings
+    ? (JSON.parse(room.padMappings) as Record<string, string>)
+    : {};
+
+  return {
+    roomState: {
+      id: room.id,
+      tempo: room.tempo,
+      padMappings,
+      createdAt: room.createdAt,
+      saved: room.saved,
+    },
   };
-  return { roomState };
 }
 
 export default function Room({ loaderData }: Route.ComponentProps) {

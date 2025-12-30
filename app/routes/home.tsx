@@ -1,5 +1,7 @@
 import { redirect } from "react-router";
 import type { Route } from "./+types/home";
+import { generateId } from "~/lib/uuid";
+import { createRoom } from "~/db/rooms";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -9,8 +11,8 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export async function action({}: Route.ActionArgs) {
-  const roomId = Bun.randomUUIDv7();
-  // TODO: Create room in database
+  const roomId = generateId();
+  await createRoom(roomId);
   return redirect(`/r/${roomId}`);
 }
 
