@@ -1,54 +1,34 @@
 import type { Route } from "./+types/rooms.$roomId.sounds";
+import { getRoom } from "~/db/rooms";
+import { getSoundsByRoom } from "~/db/sounds";
+import { isValidUUID } from "~/lib/uuid";
 
 // GET /api/rooms/:roomId/sounds - List all sounds in a room
 export async function loader({ params }: Route.LoaderArgs) {
   const { roomId } = params;
 
-  // TODO: Fetch sounds from database
-  const sounds: Array<{
-    id: string;
-    name: string;
-    mimeType: string;
-    size: number;
-    createdAt: string;
-  }> = [];
-
-  return Response.json({ sounds });
-}
-
-// POST /api/rooms/:roomId/sounds - Upload a new sound (WAV/MP3)
-export async function action({ params, request }: Route.ActionArgs) {
-  const { roomId } = params;
-
-  if (request.method !== "POST") {
-    return Response.json({ error: "Method not allowed" }, { status: 405 });
+  // Validate UUID format
+  if (!isValidUUID(roomId)) {
+    return Response.json({ error: "Invalid room ID" }, { status: 400 });
   }
 
-  const formData = await request.formData();
-  const file = formData.get("file") as File | null;
-
-  if (!file) {
-    return Response.json({ error: "No file provided" }, { status: 400 });
+  // Check room exists
+  const room = await getRoom(roomId);
+  if (!room) {
+    return Response.json({ error: "Room not found or expired" }, { status: 404 });
   }
 
-  // Validate file type
-  const allowedTypes = ["audio/wav", "audio/mpeg", "audio/mp3"];
-  if (!allowedTypes.includes(file.type)) {
-    return Response.json(
-      { error: "Invalid file type. Only WAV and MP3 are allowed." },
-      { status: 400 }
-    );
-  }
-
-  // TODO: Save file to storage and create database record
-  const soundId = Bun.randomUUIDv7();
+  // Fetch sounds from database
+  const sounds = await getSoundsByRoom(roomId);
 
   return Response.json({
-    id: soundId,
-    name: file.name,
-    mimeType: file.type,
-    size: file.size,
-    roomId,
-    createdAt: new Date().toISOString(),
+    sounds: sounds.map((s) => ({
+      id: s.id,
+      name: s.name,
+      mimeType: s.mimeType,
+      size: s.size,
+      url: s.url,
+      createdAt: s.createdAt,
+    })),
   });
 }

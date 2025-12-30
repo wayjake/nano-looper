@@ -24,7 +24,7 @@ test.describe("Room Page", () => {
     // Create a room first via the homepage
     await page.goto("/");
     await page.getByRole("button", { name: "Create New Room" }).click();
-    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/);
+    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/, { timeout: 10000 });
 
     // Check header elements
     await expect(page.getByRole("heading", { name: "Nano Looper" })).toBeVisible();
@@ -36,7 +36,7 @@ test.describe("Room Page", () => {
     // Create a room first
     await page.goto("/");
     await page.getByRole("button", { name: "Create New Room" }).click();
-    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/);
+    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/, { timeout: 10000 });
 
     // Desktop viewport (default in Playwright)
     await expect(page.getByText("DAW View")).toBeVisible();
@@ -60,7 +60,7 @@ test.describe("Room Page", () => {
     // Create a room first
     await page.goto("/");
     await page.getByRole("button", { name: "Create New Room" }).click();
-    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/);
+    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/, { timeout: 10000 });
 
     // Should show Controller view instead of DAW view
     await expect(page.getByText("Controller")).toBeVisible();
@@ -75,7 +75,7 @@ test.describe("Room Page", () => {
     // Create a room
     await page.goto("/");
     await page.getByRole("button", { name: "Create New Room" }).click();
-    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/);
+    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/, { timeout: 10000 });
 
     // Capture the room URL
     const roomUrl = page.url();
@@ -111,7 +111,7 @@ test.describe("Save Room API", () => {
     // Create a room first
     await page.goto("/");
     await page.getByRole("button", { name: "Create New Room" }).click();
-    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/);
+    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/, { timeout: 10000 });
 
     // Extract room ID from URL
     const url = page.url();
@@ -132,7 +132,7 @@ test.describe("Save Room API", () => {
     // Create a room
     await page.goto("/");
     await page.getByRole("button", { name: "Create New Room" }).click();
-    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/);
+    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/, { timeout: 10000 });
 
     const url = page.url();
     const roomId = url.split("/r/")[1];

@@ -1,6 +1,18 @@
+import { useState, useEffect, useCallback } from "react";
 import type { Route } from "./+types/room";
 import { getRoom } from "~/db/rooms";
+import { getSoundsByRoom } from "~/db/sounds";
 import { isValidUUID } from "~/lib/uuid";
+import { SoundUploader } from "~/components/SoundUploader";
+
+interface SoundInfo {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  url: string | null;
+  createdAt: string;
+}
 
 export function meta({ params }: Route.MetaArgs) {
   return [
@@ -28,6 +40,9 @@ export async function loader({ params }: Route.LoaderArgs) {
     ? (JSON.parse(room.padMappings) as Record<string, string>)
     : {};
 
+  // Fetch sounds for this room
+  const sounds = await getSoundsByRoom(roomId);
+
   return {
     roomState: {
       id: room.id,
@@ -36,11 +51,29 @@ export async function loader({ params }: Route.LoaderArgs) {
       createdAt: room.createdAt,
       saved: room.saved,
     },
+    sounds: sounds.map((s) => ({
+      id: s.id,
+      name: s.name,
+      mimeType: s.mimeType,
+      size: s.size,
+      url: s.url,
+      createdAt: s.createdAt,
+    })),
   };
 }
 
 export default function Room({ loaderData }: Route.ComponentProps) {
-  const { roomState } = loaderData;
+  const { roomState, sounds: initialSounds } = loaderData;
+  const [sounds, setSounds] = useState<SoundInfo[]>(initialSounds);
+
+  const handleUploadComplete = useCallback(async () => {
+    // Refresh sounds list from server
+    const res = await fetch(`/api/rooms/${roomState.id}/sounds`);
+    if (res.ok) {
+      const data = await res.json();
+      setSounds(data.sounds);
+    }
+  }, [roomState.id]);
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -62,7 +95,7 @@ export default function Room({ loaderData }: Route.ComponentProps) {
         {/* Desktop: DAW view / Mobile: Controller view */}
         <div className="hidden md:block">
           {/* DAW UI - shown on larger screens */}
-          <DAWView roomId={roomState.id} />
+          <DAWView roomId={roomState.id} sounds={sounds} onUploadComplete={handleUploadComplete} />
         </div>
         <div className="md:hidden">
           {/* Controller UI - shown on mobile */}
@@ -73,7 +106,13 @@ export default function Room({ loaderData }: Route.ComponentProps) {
   );
 }
 
-function DAWView({ roomId }: { roomId: string }) {
+interface DAWViewProps {
+  roomId: string;
+  sounds: SoundInfo[];
+  onUploadComplete: () => void;
+}
+
+function DAWView({ roomId, sounds, onUploadComplete }: DAWViewProps) {
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold">DAW View</h2>
@@ -109,16 +148,35 @@ function DAWView({ roomId }: { roomId: string }) {
       </div>
 
       {/* Sound upload */}
-      <div className="p-4 bg-gray-900 rounded-lg">
-        <h3 className="text-sm font-medium mb-2">Upload Sound</h3>
-        <input
-          type="file"
-          accept="audio/wav,audio/mp3,audio/mpeg"
-          className="text-sm text-gray-400"
-        />
-      </div>
+      <SoundUploader roomId={roomId} onUploadComplete={onUploadComplete} />
+
+      {/* Sounds list */}
+      {sounds.length > 0 && (
+        <div className="p-4 bg-gray-900 rounded-lg">
+          <h3 className="text-sm font-medium mb-3">Sounds ({sounds.length})</h3>
+          <ul className="space-y-2">
+            {sounds.map((sound) => (
+              <li
+                key={sound.id}
+                className="flex items-center justify-between p-2 bg-gray-800 rounded text-sm"
+              >
+                <span className="truncate flex-1">{sound.name}</span>
+                <span className="text-gray-500 text-xs ml-2">
+                  {formatFileSize(sound.size)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function ControllerView({ roomId }: { roomId: string }) {
