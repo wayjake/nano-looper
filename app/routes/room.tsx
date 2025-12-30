@@ -1,10 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { Route } from "./+types/room";
 import { getRoom } from "~/db/rooms";
 import { getSoundsByRoom } from "~/db/sounds";
 import { isValidUUID } from "~/lib/uuid";
 import { SoundUploader } from "~/components/SoundUploader";
 import { SoundList } from "~/components/SoundList";
+import { ConnectionStatus } from "~/components/ConnectionStatus";
+import { useRoomSocket, type ConnectionState } from "~/hooks/useRoomSocket";
 
 interface SoundInfo {
   id: string;
@@ -70,6 +72,46 @@ export default function Room({ loaderData }: Route.ComponentProps) {
   const [sounds, setSounds] = useState<SoundInfo[]>(initialSounds);
   const [padMappings, setPadMappings] = useState<PadMappings>(roomState.padMappings);
   const [selectedSoundId, setSelectedSoundId] = useState<string | null>(null);
+  const [tempo, setTempo] = useState(roomState.tempo);
+  const [activePad, setActivePad] = useState<number | null>(null);
+
+  // Detect if we're on mobile (controller) or desktop (DAW)
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Handle incoming pad hits (for DAW to play audio)
+  const handlePadHit = useCallback((padIndex: number) => {
+    console.log(`[Room] Pad hit: ${padIndex}`);
+    // Flash the pad briefly
+    setActivePad(padIndex);
+    setTimeout(() => setActivePad(null), 100);
+    // TODO: Phase 6 will add actual audio playback here
+  }, []);
+
+  // Handle sync state from DAW
+  const handleSyncState = useCallback((newTempo: number, newPadMappings: Record<string, string>) => {
+    setTempo(newTempo);
+    setPadMappings(newPadMappings);
+  }, []);
+
+  // Handle tempo changes
+  const handleTempoChange = useCallback((newTempo: number) => {
+    setTempo(newTempo);
+  }, []);
+
+  // Connect to WebSocket
+  const { connectionState, sendPadHit, sendSyncState, sendTempoChange } = useRoomSocket({
+    roomId: roomState.id,
+    role: isMobile ? "controller" : "daw",
+    onPadHit: handlePadHit,
+    onSyncState: handleSyncState,
+    onTempoChange: handleTempoChange,
+  });
 
   const refreshSounds = useCallback(async () => {
     const res = await fetch(`/api/rooms/${roomState.id}/sounds`);
@@ -136,11 +178,12 @@ export default function Room({ loaderData }: Route.ComponentProps) {
       <header className="p-4 border-b border-gray-800 flex items-center justify-between">
         <h1 className="text-xl font-bold">Nano Looper</h1>
         <div className="flex items-center gap-4">
+          <ConnectionStatus state={connectionState} />
           <span className="text-sm text-gray-400">
             Room: {roomState.id.slice(0, 8)}...
           </span>
           <span className="text-sm text-gray-400">
-            {roomState.tempo} BPM
+            {tempo} BPM
           </span>
         </div>
       </header>
@@ -155,6 +198,7 @@ export default function Room({ loaderData }: Route.ComponentProps) {
             sounds={sounds}
             padMappings={padMappings}
             selectedSoundId={selectedSoundId}
+            activePad={activePad}
             onSelectSound={setSelectedSoundId}
             onDeleteSound={handleDeleteSound}
             onUploadComplete={refreshSounds}
@@ -164,7 +208,13 @@ export default function Room({ loaderData }: Route.ComponentProps) {
         </div>
         <div className="md:hidden">
           {/* Controller UI - shown on mobile */}
-          <ControllerView roomId={roomState.id} padMappings={padMappings} sounds={sounds} />
+          <ControllerView
+            roomId={roomState.id}
+            padMappings={padMappings}
+            sounds={sounds}
+            activePad={activePad}
+            onPadHit={sendPadHit}
+          />
         </div>
       </main>
     </div>
@@ -176,6 +226,7 @@ interface DAWViewProps {
   sounds: SoundInfo[];
   padMappings: PadMappings;
   selectedSoundId: string | null;
+  activePad: number | null;
   onSelectSound: (soundId: string | null) => void;
   onDeleteSound: (soundId: string) => void;
   onUploadComplete: () => void;
@@ -188,6 +239,7 @@ function DAWView({
   sounds,
   padMappings,
   selectedSoundId,
+  activePad,
   onSelectSound,
   onDeleteSound,
   onUploadComplete,
@@ -235,6 +287,7 @@ function DAWView({
             {Array.from({ length: 16 }).map((_, i) => {
               const soundName = getSoundName(i);
               const hasSound = !!soundName;
+              const isActive = activePad === i;
 
               return (
                 <div
@@ -245,11 +298,13 @@ function DAWView({
                     if (hasSound) onClearPad(i);
                   }}
                   className={`aspect-square rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors ${
-                    selectedSoundId
-                      ? "ring-2 ring-indigo-500 bg-gray-800 hover:bg-indigo-600"
-                      : hasSound
-                        ? "bg-indigo-700 hover:bg-indigo-600"
-                        : "bg-gray-800 hover:bg-gray-700"
+                    isActive
+                      ? "bg-green-500 scale-95"
+                      : selectedSoundId
+                        ? "ring-2 ring-indigo-500 bg-gray-800 hover:bg-indigo-600"
+                        : hasSound
+                          ? "bg-indigo-700 hover:bg-indigo-600"
+                          : "bg-gray-800 hover:bg-gray-700"
                   }`}
                   title={hasSound ? `${soundName} (right-click to clear)` : "Empty pad"}
                 >
@@ -285,9 +340,11 @@ interface ControllerViewProps {
   roomId: string;
   padMappings: PadMappings;
   sounds: SoundInfo[];
+  activePad: number | null;
+  onPadHit: (padIndex: number) => void;
 }
 
-function ControllerView({ roomId, padMappings, sounds }: ControllerViewProps) {
+function ControllerView({ roomId, padMappings, sounds, activePad, onPadHit }: ControllerViewProps) {
   // Helper to check if pad has a sound
   const hasSound = (padIndex: number): boolean => {
     const soundId = padMappings[padIndex];
@@ -302,14 +359,18 @@ function ControllerView({ roomId, padMappings, sounds }: ControllerViewProps) {
       <div className="grid grid-cols-4 gap-2">
         {Array.from({ length: 16 }).map((_, i) => {
           const padHasSound = hasSound(i);
+          const isActive = activePad === i;
 
           return (
             <button
               key={i}
-              className={`aspect-square rounded-lg flex items-center justify-center text-2xl font-bold transition-colors ${
-                padHasSound
-                  ? "bg-indigo-700 active:bg-indigo-500 text-white"
-                  : "bg-gray-800 active:bg-gray-600 text-gray-500"
+              onClick={() => onPadHit(i)}
+              className={`aspect-square rounded-lg flex items-center justify-center text-2xl font-bold transition-all ${
+                isActive
+                  ? "bg-green-500 scale-95 text-white"
+                  : padHasSound
+                    ? "bg-indigo-700 active:bg-indigo-500 text-white"
+                    : "bg-gray-800 active:bg-gray-600 text-gray-500"
               }`}
             >
               {i + 1}
