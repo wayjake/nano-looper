@@ -1,4 +1,5 @@
 import type { RoomState, Sound } from "./types";
+import { generateId } from "./uuid";
 
 // Create a new room state with defaults
 export function createRoomState(id: string): RoomState {
@@ -59,7 +60,7 @@ export const db = {
     file: File
   ): Promise<Sound> {
     const sound: Sound = {
-      id: Bun.randomUUIDv7(),
+      id: generateId(),
       roomId,
       name: file.name,
       mimeType: file.type,

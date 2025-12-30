@@ -9,11 +9,13 @@ Nano Looper is a collaborative, browser-based loop music DAW (Digital Audio Work
 ## Commands
 
 ```bash
-npm run dev      # Start dev server with HMR (http://localhost:5173)
-npm run build    # Production build
-npm run start    # Serve production build
-npm run typecheck # Generate route types + TypeScript check
+bun run dev      # Start dev server with HMR (http://localhost:5173)
+bun run build    # Production build
+bun run start    # Serve production build
+bun run typecheck # Generate route types + TypeScript check
 ```
+
+**Note**: Always use `bun` instead of `npm` for package management and running scripts.
 
 ## Architecture
 

@@ -4,6 +4,7 @@ export type WSMessage =
   | { type: "join"; roomId: string; role: "daw" | "controller" }
   | { type: "pad-hit"; padIndex: number; velocity?: number }
   | { type: "sync-state"; tempo: number; padMappings: Record<string, string> }
+  | { type: "request-sync" }
   | { type: "tempo-change"; tempo: number }
   | { type: "heartbeat" }
   | { type: "pong" }
@@ -60,6 +61,9 @@ export function parseWSMessage(data: string): WSMessage | null {
 
       case "pong":
         return { type: "pong" };
+
+      case "request-sync":
+        return { type: "request-sync" };
     }
 
     return null;

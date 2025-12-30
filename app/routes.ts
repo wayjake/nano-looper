@@ -1,13 +1,16 @@
-import { type RouteConfig, index, route } from "@react-router/dev/routes";
+import { type RouteConfig, index, route, layout } from "@react-router/dev/routes";
 
 export default [
   // Home page - creates room and redirects
   route("/", "routes/home.tsx", { index: true }),
 
-  // Room page - DAW UI
-  route("r/:roomId", "routes/room.tsx"),
+  // Room layout with child routes
+  route("r/:roomId", "routes/room.tsx", [
+    index("routes/room._index.tsx"),
+    route("add-sounds", "routes/room.add-sounds.tsx"),
+  ]),
 
-  // Sample preview page
+  // Sample preview page (standalone, for development)
   route("preview", "routes/preview.tsx"),
 
   // API routes

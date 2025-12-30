@@ -10,6 +10,7 @@ interface UseRoomSocketOptions {
   onPadHit?: (padIndex: number, velocity?: number) => void;
   onSyncState?: (tempo: number, padMappings: Record<string, string>) => void;
   onTempoChange?: (tempo: number) => void;
+  onRequestSync?: () => void;
 }
 
 interface UseRoomSocketReturn {
@@ -30,6 +31,7 @@ export function useRoomSocket({
   onPadHit,
   onSyncState,
   onTempoChange,
+  onRequestSync,
 }: UseRoomSocketOptions): UseRoomSocketReturn {
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
@@ -37,6 +39,18 @@ export function useRoomSocket({
   const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectDelayRef = useRef(INITIAL_RECONNECT_DELAY);
   const messageQueueRef = useRef<WSMessage[]>([]);
+
+  // Store callbacks in refs to avoid reconnection when they change
+  const onPadHitRef = useRef(onPadHit);
+  const onSyncStateRef = useRef(onSyncState);
+  const onTempoChangeRef = useRef(onTempoChange);
+  const onRequestSyncRef = useRef(onRequestSync);
+
+  // Keep refs up to date
+  onPadHitRef.current = onPadHit;
+  onSyncStateRef.current = onSyncState;
+  onTempoChangeRef.current = onTempoChange;
+  onRequestSyncRef.current = onRequestSync;
 
   // Get WebSocket URL based on environment
   const getWsUrl = useCallback(() => {
@@ -124,16 +138,19 @@ export function useRoomSocket({
 
       switch (msg.type) {
         case "pad-hit":
-          onPadHit?.(msg.padIndex, msg.velocity);
+          onPadHitRef.current?.(msg.padIndex, msg.velocity);
           break;
         case "sync-state":
-          onSyncState?.(msg.tempo, msg.padMappings);
+          onSyncStateRef.current?.(msg.tempo, msg.padMappings);
           break;
         case "tempo-change":
-          onTempoChange?.(msg.tempo);
+          onTempoChangeRef.current?.(msg.tempo);
           break;
         case "pong":
           // Heartbeat response received
+          break;
+        case "request-sync":
+          onRequestSyncRef.current?.();
           break;
         case "error":
           console.error("[WS] Server error:", msg.message);
@@ -157,7 +174,7 @@ export function useRoomSocket({
     ws.onerror = (error) => {
       console.error("[WS] Error:", error);
     };
-  }, [getWsUrl, roomId, role, onPadHit, onSyncState, onTempoChange, startHeartbeat, stopHeartbeat, flushMessageQueue]);
+  }, [getWsUrl, roomId, role, startHeartbeat, stopHeartbeat, flushMessageQueue]);
 
   // Connect on mount, cleanup on unmount
   useEffect(() => {

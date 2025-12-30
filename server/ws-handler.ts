@@ -51,15 +51,10 @@ export const websocketHandler = {
 
         console.log(`[WS] Client joined room ${roomId} as ${role}`);
 
-        // Notify room of new participant
-        ws.publish(
-          roomId,
-          serializeWSMessage({
-            type: "sync-state",
-            tempo: 120, // Default, DAW will send actual state
-            padMappings: {},
-          })
-        );
+        // If a controller joined, ask DAW to send current state
+        if (role === "controller") {
+          ws.publish(roomId, serializeWSMessage({ type: "request-sync" }));
+        }
         break;
       }
 

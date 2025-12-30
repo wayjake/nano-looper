@@ -1,4 +1,4 @@
-import { eq, and, isNotNull, lt } from "drizzle-orm";
+import { eq, and, isNotNull, lt, gt, or, desc } from "drizzle-orm";
 import { db } from "./client";
 import { rooms, type Room, type NewRoom } from "./schema";
 
@@ -186,4 +186,26 @@ export async function deleteExpiredRooms(): Promise<number> {
   // libsql doesn't return affected rows directly, so we return 0 as placeholder
   // In practice, you'd track this differently or use a count query before delete
   return 0;
+}
+
+/**
+ * List all active (non-expired) rooms, ordered by most recent first.
+ */
+export async function listRooms(): Promise<Room[]> {
+  const now = new Date().toISOString();
+
+  const result = await db
+    .select()
+    .from(rooms)
+    .where(
+      or(
+        // Saved rooms (never expire)
+        eq(rooms.saved, true),
+        // Not expired yet
+        and(isNotNull(rooms.expiresAt), gt(rooms.expiresAt, now))
+      )
+    )
+    .orderBy(desc(rooms.createdAt));
+
+  return result;
 }
