@@ -90,6 +90,67 @@ export async function updateRoom(
 }
 
 /**
+ * Update a single pad mapping.
+ * padIndex: 0-15
+ * soundId: sound ID or null to clear
+ */
+export async function updatePadMapping(
+  roomId: string,
+  padIndex: number,
+  soundId: string | null
+): Promise<Record<string, string | null> | null> {
+  const room = await getRoom(roomId);
+  if (!room) {
+    return null;
+  }
+
+  // Parse existing mappings
+  const mappings: Record<string, string | null> = room.padMappings
+    ? JSON.parse(room.padMappings)
+    : {};
+
+  // Update the specific pad
+  if (soundId === null) {
+    delete mappings[String(padIndex)];
+  } else {
+    mappings[String(padIndex)] = soundId;
+  }
+
+  // Save back to DB
+  const padMappingsJson = JSON.stringify(mappings);
+  await db.update(rooms).set({ padMappings: padMappingsJson }).where(eq(rooms.id, roomId));
+
+  return mappings;
+}
+
+/**
+ * Clear pad mappings that reference a deleted sound.
+ */
+export async function clearPadMappingsForSound(soundId: string): Promise<void> {
+  // This is a simple implementation - in production you might want to batch this
+  const allRooms = await db.select().from(rooms);
+
+  for (const room of allRooms) {
+    if (!room.padMappings) continue;
+
+    const mappings: Record<string, string | null> = JSON.parse(room.padMappings);
+    let changed = false;
+
+    for (const [padIndex, mappedSoundId] of Object.entries(mappings)) {
+      if (mappedSoundId === soundId) {
+        delete mappings[padIndex];
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      const padMappingsJson = Object.keys(mappings).length > 0 ? JSON.stringify(mappings) : null;
+      await db.update(rooms).set({ padMappings: padMappingsJson }).where(eq(rooms.id, room.id));
+    }
+  }
+}
+
+/**
  * Check if a room is expired.
  * Saved rooms never expire.
  */

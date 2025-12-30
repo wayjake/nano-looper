@@ -170,3 +170,201 @@ test.describe("Save Room API", () => {
     expect(data.error).toBe("Invalid room ID");
   });
 });
+
+test.describe("Sounds List API", () => {
+  test("returns empty sounds array for new room", async ({ page, request }) => {
+    // Create a room
+    await page.goto("/");
+    await page.getByRole("button", { name: "Create New Room" }).click();
+    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/, { timeout: 10000 });
+
+    const roomId = page.url().split("/r/")[1];
+
+    const response = await request.get(`/api/rooms/${roomId}/sounds`);
+
+    expect(response.status()).toBe(200);
+
+    const data = await response.json();
+    expect(data.sounds).toEqual([]);
+  });
+
+  test("returns 404 for non-existent room", async ({ request }) => {
+    const response = await request.get(
+      "/api/rooms/01234567-89ab-cdef-0123-456789abcdef/sounds"
+    );
+
+    expect(response.status()).toBe(404);
+
+    const data = await response.json();
+    expect(data.error).toBe("Room not found or expired");
+  });
+
+  test("returns 400 for invalid room ID", async ({ request }) => {
+    const response = await request.get("/api/rooms/invalid-id/sounds");
+
+    expect(response.status()).toBe(400);
+
+    const data = await response.json();
+    expect(data.error).toBe("Invalid room ID");
+  });
+});
+
+test.describe("Pad Assignment API", () => {
+  test("can assign sound to pad", async ({ page, request }) => {
+    // Create a room
+    await page.goto("/");
+    await page.getByRole("button", { name: "Create New Room" }).click();
+    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/, { timeout: 10000 });
+
+    const roomId = page.url().split("/r/")[1];
+    const fakeSoundId = "01234567-89ab-cdef-0123-456789abcdef";
+
+    // Assign a sound to pad 0
+    const response = await request.put(`/api/rooms/${roomId}/pads/0`, {
+      data: { soundId: fakeSoundId },
+    });
+
+    expect(response.status()).toBe(200);
+
+    const data = await response.json();
+    expect(data.padMappings["0"]).toBe(fakeSoundId);
+  });
+
+  test("can clear pad assignment", async ({ page, request }) => {
+    // Create a room
+    await page.goto("/");
+    await page.getByRole("button", { name: "Create New Room" }).click();
+    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/, { timeout: 10000 });
+
+    const roomId = page.url().split("/r/")[1];
+    const fakeSoundId = "01234567-89ab-cdef-0123-456789abcdef";
+
+    // First assign a sound
+    await request.put(`/api/rooms/${roomId}/pads/0`, {
+      data: { soundId: fakeSoundId },
+    });
+
+    // Then clear it
+    const response = await request.put(`/api/rooms/${roomId}/pads/0`, {
+      data: { soundId: null },
+    });
+
+    expect(response.status()).toBe(200);
+
+    const data = await response.json();
+    expect(data.padMappings["0"]).toBeUndefined();
+  });
+
+  test("pad assignments persist across requests", async ({ page, request }) => {
+    // Create a room
+    await page.goto("/");
+    await page.getByRole("button", { name: "Create New Room" }).click();
+    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/, { timeout: 10000 });
+
+    const roomId = page.url().split("/r/")[1];
+    const sound1 = "11111111-1111-1111-1111-111111111111";
+    const sound2 = "22222222-2222-2222-2222-222222222222";
+
+    // Assign sounds to multiple pads
+    await request.put(`/api/rooms/${roomId}/pads/0`, { data: { soundId: sound1 } });
+    await request.put(`/api/rooms/${roomId}/pads/5`, { data: { soundId: sound2 } });
+    const response = await request.put(`/api/rooms/${roomId}/pads/15`, {
+      data: { soundId: sound1 },
+    });
+
+    expect(response.status()).toBe(200);
+
+    const data = await response.json();
+    expect(data.padMappings["0"]).toBe(sound1);
+    expect(data.padMappings["5"]).toBe(sound2);
+    expect(data.padMappings["15"]).toBe(sound1);
+  });
+
+  test("returns 400 for invalid pad index", async ({ page, request }) => {
+    // Create a room
+    await page.goto("/");
+    await page.getByRole("button", { name: "Create New Room" }).click();
+    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/, { timeout: 10000 });
+
+    const roomId = page.url().split("/r/")[1];
+
+    // Pad index 16 is out of range (0-15)
+    const response = await request.put(`/api/rooms/${roomId}/pads/16`, {
+      data: { soundId: "01234567-89ab-cdef-0123-456789abcdef" },
+    });
+
+    expect(response.status()).toBe(400);
+
+    const data = await response.json();
+    expect(data.error).toBe("Invalid pad index (must be 0-15)");
+  });
+
+  test("returns 400 for invalid sound ID", async ({ page, request }) => {
+    // Create a room
+    await page.goto("/");
+    await page.getByRole("button", { name: "Create New Room" }).click();
+    await expect(page).toHaveURL(/\/r\/[a-f0-9-]+/, { timeout: 10000 });
+
+    const roomId = page.url().split("/r/")[1];
+
+    const response = await request.put(`/api/rooms/${roomId}/pads/0`, {
+      data: { soundId: "not-a-uuid" },
+    });
+
+    expect(response.status()).toBe(400);
+
+    const data = await response.json();
+    expect(data.error).toBe("Invalid sound ID");
+  });
+
+  test("returns 404 for non-existent room", async ({ request }) => {
+    const response = await request.put(
+      "/api/rooms/01234567-89ab-cdef-0123-456789abcdef/pads/0",
+      { data: { soundId: "11111111-1111-1111-1111-111111111111" } }
+    );
+
+    expect(response.status()).toBe(404);
+
+    const data = await response.json();
+    expect(data.error).toBe("Room not found or expired");
+  });
+});
+
+test.describe("Sound API", () => {
+  test("returns 404 for non-existent sound", async ({ request }) => {
+    const response = await request.get(
+      "/api/sounds/01234567-89ab-cdef-0123-456789abcdef"
+    );
+
+    expect(response.status()).toBe(404);
+  });
+
+  test("returns 400 for invalid sound ID on GET", async ({ request }) => {
+    const response = await request.get("/api/sounds/invalid-id");
+
+    expect(response.status()).toBe(400);
+
+    const data = await response.json();
+    expect(data.error).toBe("Invalid sound ID");
+  });
+
+  test("returns 404 when deleting non-existent sound", async ({ request }) => {
+    const response = await request.delete(
+      "/api/sounds/01234567-89ab-cdef-0123-456789abcdef"
+    );
+
+    expect(response.status()).toBe(404);
+
+    const data = await response.json();
+    expect(data.error).toBe("Sound not found");
+  });
+
+  test("returns 400 for invalid sound ID on DELETE", async ({ request }) => {
+    const response = await request.delete("/api/sounds/invalid-id");
+
+    expect(response.status()).toBe(400);
+
+    const data = await response.json();
+    expect(data.error).toBe("Invalid sound ID");
+  });
+});
