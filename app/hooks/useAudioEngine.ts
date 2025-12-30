@@ -23,6 +23,11 @@ interface UseAudioEngineReturn {
   isReady: boolean;
 }
 
+// Check if we're on a small screen (mobile/controller)
+function isSmallScreen(): boolean {
+  return typeof window !== "undefined" && window.innerWidth < 768;
+}
+
 /**
  * React hook for using the AudioEngine
  *
@@ -43,7 +48,8 @@ export function useAudioEngine({
 
   // Initialize audio engine (must be called from user gesture)
   const initAudio = useCallback(async () => {
-    if (!enabled || initCalledRef.current) return;
+    // Double-check viewport to avoid race conditions with enabled prop
+    if (!enabled || isSmallScreen() || initCalledRef.current) return;
     initCalledRef.current = true;
 
     try {
@@ -59,7 +65,8 @@ export function useAudioEngine({
 
   // Load sounds when engine is ready and sounds change
   useEffect(() => {
-    if (state !== "ready" || !enabled) return;
+    // Double-check viewport to avoid race conditions
+    if (state !== "ready" || !enabled || isSmallScreen()) return;
 
     const soundsToLoad = sounds
       .filter((s) => s.url && !engine.isSoundLoaded(s.id))
@@ -75,7 +82,8 @@ export function useAudioEngine({
   // Trigger a sound
   const trigger = useCallback(
     (soundId: string) => {
-      if (!enabled) return;
+      // Double-check viewport to avoid race conditions
+      if (!enabled || isSmallScreen()) return;
       engine.trigger(soundId);
     },
     [engine, enabled]

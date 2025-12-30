@@ -35,8 +35,9 @@ export default function RoomIndex() {
       setActivePad(padIndex);
       setTimeout(() => setActivePad(null), 100);
 
-      // Only DAW plays audio - controller just shows visual feedback
-      if (isMobile) return;
+      // Only DAW plays audio - check viewport directly to avoid race with isMobile state
+      const isSmallScreen = typeof window !== "undefined" && window.innerWidth < 768;
+      if (isSmallScreen) return;
 
       const soundId = padMappings[padIndex];
       if (soundId) {
@@ -51,7 +52,7 @@ export default function RoomIndex() {
         }
       }
     },
-    [isMobile, padMappings, audioState, audioReady, triggerSound, initAudio, setActivePad]
+    [padMappings, audioState, audioReady, triggerSound, initAudio, setActivePad]
   );
 
   // Handle sync state from DAW (only controllers should apply this)
